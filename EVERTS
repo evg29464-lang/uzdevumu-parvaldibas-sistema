@@ -1,29 +1,32 @@
 import json
 from typing import List, Optional
 
-#  Statusi
-VALID_STATUSES = ["Jauns", "Procesā", "Pabeigts", "Atlikts"]
+VALID_STATUSES = ("Jauns", "Procesā", "Pabeigts", "Atlikts")
 
 
 class Uzdevums:
     def __init__(self, id: int, nosaukums: str, status: str = "Jauns"):
         self.id = id
         self.nosaukums = nosaukums
-        self.status = status
+        self.set_status(status)
 
-    def set_status(self, new_status: str):
+    def set_status(self, new_status: str) -> None:
         if new_status not in VALID_STATUSES:
             raise ValueError(f"Nederīgs statuss: {new_status}")
         self.status = new_status
 
-    def to_dict(self):
-        return {"id": self.id, "nosaukums": self.nosaukums, "status": self.status}
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "nosaukums": self.nosaukums,
+            "status": self.status,
+        }
 
-
-    def from_dict(cls, data):
+    @classmethod
+    def from_dict(cls, data: dict) -> "Uzdevums":
         return cls(data["id"], data["nosaukums"], data["status"])
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"[{self.id}] {self.nosaukums} ({self.status})"
 
 
@@ -31,36 +34,36 @@ class UzdevumuSaraksts:
     def __init__(self):
         self.uzdevumi: List[Uzdevums] = []
 
-    def add(self, uzdevums: Uzdevums):
+    def add(self, uzdevums: Uzdevums) -> None:
         self.uzdevumi.append(uzdevums)
 
     def get_by_id(self, id: int) -> Optional[Uzdevums]:
-        for u in self.uzdevumi:
-            if u.id == id:
-                return u
-        return None
+        return next((u for u in self.uzdevumi if u.id == id), None)
 
-    def delete(self, id: int):
+    def delete(self, id: int) -> bool:
+        original_len = len(self.uzdevumi)
         self.uzdevumi = [u for u in self.uzdevumi if u.id != id]
+        return len(self.uzdevumi) < original_len
 
-    def filter_by_status(self, status: str):
+    def filter_by_status(self, status: str) -> List[Uzdevums]:
+        if status not in VALID_STATUSES:
+            return []
         return [u for u in self.uzdevumi if u.status == status]
 
-    def search_by_name(self, term: str):
+    def search_by_name(self, term: str) -> List[Uzdevums]:
         term = term.lower()
         return [u for u in self.uzdevumi if term in u.nosaukums.lower()]
 
-    def sort_by_id(self):
-        self.uzdevumi.sort(key=lambda u: u.id)
-
-    def sort_by_name(self):
-        self.uzdevumi.sort(key=lambda u: u.nosaukums.lower())
-
-    def saglabat_faila(self, filename: str):
+    def saglabat_faila(self, filename: str) -> None:
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump([u.to_dict() for u in self.uzdevumi], f, ensure_ascii=False, indent=4)
+            json.dump(
+                [u.to_dict() for u in self.uzdevumi],
+                f,
+                ensure_ascii=False,
+                indent=4,
+            )
 
-    def ieladet_no_faila(self, filename: str):
+    def ieladet_no_faila(self, filename: str) -> None:
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -73,9 +76,20 @@ class UzdevumuSaraksts:
 
 def menu():
     print("""
+1 - Pievienot uzdevumu
+2 - Parādīt visus uzdevumus
+3 - Mainīt uzdevuma statusu
+4 - Dzēst uzdevumu
+5 - Atrast uzdevumu pēc ID
+6 - Filtrēt pēc statusa
+7 - Meklēt pēc nosaukuma
+8 - Saglabāt failā
+9 - Ielādēt no faila
+0 - Iziet
+""")
 
 
-def get_int(prompt: str):
+def get_int(prompt: str) -> Optional[int]:
     try:
         return int(input(prompt))
     except ValueError:
@@ -96,13 +110,13 @@ def main():
             if name:
                 uzs.add(Uzdevums(next_id, name))
                 next_id += 1
-                print(" Uzdevums pievienots!")
+                print("✔ Uzdevums pievienots!")
             else:
                 print("‼ Nosaukums nevar būt tukšs.")
 
         elif choice == "2":
             if not uzs.uzdevumi:
-                print(" Nav neviena uzdevuma.")
+                print("Nav neviena uzdevuma.")
             for u in uzs.uzdevumi:
                 print(u)
 
@@ -113,56 +127,28 @@ def main():
             u = uzs.get_by_id(idn)
             if u:
                 print("Pieejamie statusi:", VALID_STATUSES)
-                new_stat = input("Jaunais statuss: ")
                 try:
-                    u.set_status(new_stat)
-                    print(" Statuss nomainīts!")
+                    u.set_status(input("Jaunais statuss: "))
+                    print("✔ Statuss nomainīts!")
                 except ValueError as e:
                     print("‼", e)
             else:
-                print("‼ Nav tāda uzdevuma ar šo ID.")
+                print("‼ Nav tāda uzdevuma.")
 
         elif choice == "4":
             idn = get_int("Ievadi ID, ko dzēst: ")
             if idn is None:
                 continue
-            uzs.delete(idn)
-            print("✔ Dzēsts (ja tāds bija).")
-
-        elif choice == "5":
-            idn = get_int("Ievadi ID: ")
-            if idn is None:
-                continue
-            u = uzs.get_by_id(idn)
-            print(u if u else "‼ Nav tāda uzdevuma.")
-
-        elif choice == "6":
-            status = input("Statuss: ")
-            rezultati = uzs.filter_by_status(status)
-            for u in rezultati:
-                print(u)
-            if not rezultati:
-                print("‼ Nav uzdevumu ar tādu statusu.")
-
-        elif choice == "7":
-            term = input("Meklēt pēc vārda: ")
-            rezultati = uzs.search_by_name(term)
-            for u in rezultati:
-                print(u)
-            if not rezultati:
-                print("‼ Nekas netika atrasts.")
-
-        elif choice == "8":
-            fn = input("Faila nosaukums: ")
-            uzs.saglabat_faila(fn)
-            print("  Saglabāts!")
+            print("✔ Dzēsts!" if uzs.delete(idn) else "‼ Nav tāda uzdevuma.")
 
         elif choice == "9":
             fn = input("Faila nosaukums: ")
             uzs.ieladet_no_faila(fn)
+            if uzs.uzdevumi:
+                next_id = max(u.id for u in uzs.uzdevumi) + 1
 
         elif choice == "0":
-            print(" Tiekamies vēl!")
+            print("Tiekamies vēl!")
             break
 
         else:
